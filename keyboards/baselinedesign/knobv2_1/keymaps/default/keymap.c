@@ -10,6 +10,9 @@ typedef union {
     uint32_t raw;
     struct{
         int16_t sensitivity;
+        int16_t deadzone;
+        int16_t speedDivisor;
+
     };
 } custom_config_t;
 
@@ -31,6 +34,8 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 void eeconfig_init_user(void) {
     custom_config.sensitivity = 82;
+    custom_config.deadzone = 12;
+    custom_config.speedDivisor = 2;
     eeconfig_update_user(custom_config.raw);
 }
 
@@ -51,7 +56,8 @@ uint16_t timeout = 100;  // i2c Timeout in milliseconds
 int16_t lastValue = 0;  // Stores the last value of the encoder that triggered a keystroke
 
 //AS5600 stores its angle measurements in two registrys that need to be recorded separately and then combined
-void encoder_driver_task(void) {
+//void encoder_driver_task(void) {
+report_mouse_t pointing_device_driver_get_report(report_mouse_t mouse_report) {
     
     //single read testing
     i2c_status_t comboVal = i2c_read_register(
@@ -85,7 +91,15 @@ void encoder_driver_task(void) {
         delta = 0;  // Angle wrapped around in the negative direction
         lastValue = scaled_angle;
     }
+
+     if (delta > custom_config.deadzone || delta < -custom_config.deadzone) {
+            lastValue = scaled_angle;
+            mouse_report.v = delta / custom_config.speedDivisor;
+        }
     
+    return mouse_report;
+
+    /*
     //CW Dial controll logic
     if (delta > custom_config.sensitivity) {
         lastValue = scaled_angle;  // Update last value
@@ -95,11 +109,13 @@ void encoder_driver_task(void) {
     } 
     
     //CCW Dial controll logic
+    
     else if (delta < -custom_config.sensitivity) {
         lastValue = scaled_angle;  // Update last value
         encoder_queue_event(0, false); // send a CCW encoder event
         //wait_ms(40);
     }
+    */
 
     #ifdef CONSOLE_ENABLE
         if(delta > custom_config.sensitivity || delta < -custom_config.sensitivity ){
