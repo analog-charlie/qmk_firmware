@@ -126,7 +126,57 @@
                     "label": " ",
                     "content": [
                         {
-                            "label": "Sensitivity",
+                            "label": "Enable Smooth Scroll",
+                            "type": "toggle",
+                            "content": ["id_smooth_scroll_mode", 0, 1]
+                        },
+                        {
+                            "showIf": "{id_smooth_scroll_mode} == 1",
+                            "label": "Scroll Direction",
+                            "type": "dropdown",
+                            "options": [
+                                ["Vertical", 0],
+                                ["Horizontal", 1]
+                            ],
+                            "content": ["id_scroll_direction", 0, 3]
+                        },
+                        {
+                            "showIf": "{id_smooth_scroll_mode} == 1",
+                            "label": "Smooth Scroll Sensitivity",
+                            "type": "dropdown",
+                            "options": [
+                                ["Low", 3],
+                                ["Medium", 2],
+                                ["High", 1]
+                            ],
+                            "content": ["id_smooth_sensitivity", 0, 4]
+                        },
+                        {
+                            "showIf": "{id_smooth_scroll_mode} == 1",
+                            "label": "Dead Zone",
+                            "type": "dropdown",
+                            "options": [
+                                ["1", 2],
+                                ["2", 3],
+                                ["3", 4],
+                                ["4", 5],
+                                ["5", 6],
+                                ["6", 7],
+                                ["7", 8],
+                                ["8", 9],
+                                ["9", 10]
+                            ],
+                            "content": ["id_deadzone", 0, 5]
+                        },
+                        {
+                            "showIf": "{id_smooth_scroll_mode} == 1",
+                            "label": "Reverse Scroll Direction",
+                            "type": "toggle",
+                            "content": ["id_invert_direction", 0, 6]
+                        },
+                        {
+                            "showIf": "{id_smooth_scroll_mode} == 0",
+                            "label": "Encoder Sensitivity (High to Low)",
                             "type": "range",
                             "options": [1, 162],
                             "content": ["id_sensitivity", 0, 2]

@@ -10,9 +10,11 @@ typedef union {
     uint32_t raw;
     struct{
         int16_t sensitivity;
+        int smoothScrollMode;
+        int16_t direction;
+        int16_t smoothSensitivity;
         int16_t deadzone;
-        int16_t speedDivisor;
-
+        int invertDirection;
     };
 } custom_config_t;
 
@@ -34,8 +36,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 void eeconfig_init_user(void) {
     custom_config.sensitivity = 82;
-    custom_config.deadzone = 12;
-    custom_config.speedDivisor = 2;
+    custom_config.smoothScrollMode = 0;
+    custom_config.direction = 0;
+    custom_config.smoothSensitivity = 1;
+    custom_config.deadzone = 2;
+    custom_config.invertDirection = 0;
     eeconfig_update_user(custom_config.raw);
 }
 
@@ -56,78 +61,136 @@ uint16_t timeout = 100;  // i2c Timeout in milliseconds
 int16_t lastValue = 0;  // Stores the last value of the encoder that triggered a keystroke
 
 //AS5600 stores its angle measurements in two registrys that need to be recorded separately and then combined
-//void encoder_driver_task(void) {
-report_mouse_t pointing_device_driver_get_report(report_mouse_t mouse_report) {
-    
-    //single read testing
-    i2c_status_t comboVal = i2c_read_register(
-        device_address,          // Device address
-        register_address_high,
-        data,                // Pointer to the buffer for storing low byteab
-        length,                       // Number of bytes to read
-        timeout                  // Timeout in milliseconds
-    );
-    if (comboVal == I2C_STATUS_SUCCESS) {
-        //uprintf("Low byte read successful: %d\n", data_low[0]);  //unncomment if unsure if i2c is working
-    } else if (comboVal == I2C_STATUS_TIMEOUT) {
-        uprintf("Low byte read operation timed out.\n");
-    } else if (comboVal == I2C_STATUS_ERROR) {
-        uprintf("Low byte read operation failed with an error.\n");
-    }
-    
-    // Combine the high and low byte to calculate the scaled angle
-    int16_t scaled_angle = ((uint16_t)data[0] << 8) | data[1];
 
-    //delta is now equal to the difference between the value that last triggered a keystroke and the most recent measured value
-    int16_t delta = scaled_angle - lastValue; 
+    void encoder_driver_task(void) {
+        if (custom_config.smoothScrollMode == 0){
+        
+            //single read testing
+            i2c_status_t comboVal = i2c_read_register(
+                device_address,          // Device address
+                register_address_high,
+                data,                // Pointer to the buffer for storing low byteab
+                length,                       // Number of bytes to read
+                timeout                  // Timeout in milliseconds
+            );
+            if (comboVal == I2C_STATUS_SUCCESS) {
+                //uprintf("Low byte read successful: %d\n", data_low[0]);  //unncomment if unsure if i2c is working
+            } else if (comboVal == I2C_STATUS_TIMEOUT) {
+                uprintf("Low byte read operation timed out.\n");
+            } else if (comboVal == I2C_STATUS_ERROR) {
+                uprintf("Low byte read operation failed with an error.\n");
+            }
+            
+            // Combine the high and low byte to calculate the scaled angle
+            int16_t scaled_angle = ((uint16_t)data[0] << 8) | data[1];
 
-    
-    // Handle the wraparound case when the value goes from 4096->0
-    if (delta > 2047) {
-        delta = 0;  // Angle wrapped around in the positive direction
-        lastValue = scaled_angle;
+            //delta is now equal to the difference between the value that last triggered a keystroke and the most recent measured value
+            int16_t delta = scaled_angle - lastValue; 
 
-    } else if (delta < -2047) {
-        delta = 0;  // Angle wrapped around in the negative direction
-        lastValue = scaled_angle;
-    }
+            
+            // Handle the wraparound case when the value goes from 4096->0
+            if (delta > 2047) {
+                delta = 0;  // Angle wrapped around in the positive direction
+                lastValue = scaled_angle;
 
-     if (delta > custom_config.deadzone || delta < -custom_config.deadzone) {
-            lastValue = scaled_angle;
-            mouse_report.v = delta / custom_config.speedDivisor;
+            } else if (delta < -2047) {
+                delta = 0;  // Angle wrapped around in the negative direction
+                lastValue = scaled_angle;
+            }
+
+            //CW Dial controll logic
+            if (delta > custom_config.sensitivity) {
+                lastValue = scaled_angle;  // Update last value
+                encoder_queue_event(0, true); // send a CW encoder event
+                //wait_ms(40);
+
+            } 
+            
+            //CCW Dial controll logic
+            else if (delta < -custom_config.sensitivity) {
+                lastValue = scaled_angle;  // Update last value
+                encoder_queue_event(0, false); // send a CCW encoder event
+                //wait_ms(40);
+            }
+
+            #ifdef CONSOLE_ENABLE
+                if(delta > custom_config.sensitivity || delta < -custom_config.sensitivity ){
+                    uprintf(" Scaled angle: %d last Value: %d dataHigh: %d dataLow: %d delta: %d\n",  scaled_angle, lastValue, data[0], data[1], delta);
+                    //wait_ms(100);
+                }
+            #endif 
         }
-    
-    return mouse_report;
-
-    /*
-    //CW Dial controll logic
-    if (delta > custom_config.sensitivity) {
-        lastValue = scaled_angle;  // Update last value
-        encoder_queue_event(0, true); // send a CW encoder event
-        //wait_ms(40);
-
-    } 
-    
-    //CCW Dial controll logic
-    
-    else if (delta < -custom_config.sensitivity) {
-        lastValue = scaled_angle;  // Update last value
-        encoder_queue_event(0, false); // send a CCW encoder event
-        //wait_ms(40);
     }
-    */
 
-    #ifdef CONSOLE_ENABLE
-        if(delta > custom_config.sensitivity || delta < -custom_config.sensitivity ){
-            uprintf(" Scaled angle: %d last Value: %d dataHigh: %d dataLow: %d delta: %d\n",  scaled_angle, lastValue, data[0], data[1], delta);
-            //wait_ms(100);
-        }
-    #endif 
-}
+    report_mouse_t pointing_device_driver_get_report(report_mouse_t mouse_report) {
+        if (custom_config.smoothScrollMode == 1){
+            //single read testing
+            i2c_status_t comboVal = i2c_read_register(
+                device_address,          // Device address
+                register_address_high,
+                data,                // Pointer to the buffer for storing low byteab
+                length,                       // Number of bytes to read
+                timeout                  // Timeout in milliseconds
+            );
+            if (comboVal == I2C_STATUS_SUCCESS) {
+                //uprintf("Low byte read successful: %d\n", data_low[0]);  //unncomment if unsure if i2c is working
+            } else if (comboVal == I2C_STATUS_TIMEOUT) {
+                uprintf("Low byte read operation timed out.\n");
+            } else if (comboVal == I2C_STATUS_ERROR) {
+                uprintf("Low byte read operation failed with an error.\n");
+            }
+            
+            // Combine the high and low byte to calculate the scaled angle
+            int16_t scaled_angle = ((uint16_t)data[0] << 8) | data[1];
+
+            //delta is now equal to the difference between the value that last triggered a keystroke and the most recent measured value
+            int16_t delta = scaled_angle - lastValue; 
+
+            
+            // Handle the wraparound case when the value goes from 4096->0
+            if (delta > 2047) {
+                delta = 0;  // Angle wrapped around in the positive direction
+                lastValue = scaled_angle;
+
+            } else if (delta < -2047) {
+                delta = 0;  // Angle wrapped around in the negative direction
+                lastValue = scaled_angle;
+            }
+
+            if (delta > custom_config.deadzone || delta < -custom_config.deadzone) {
+                if(custom_config.invertDirection == 1){
+                    delta = -delta;
+                }
+                lastValue = scaled_angle;
+                if(custom_config.direction == 0){
+                    mouse_report.v = delta / custom_config.smoothSensitivity;
+                }
+                else{
+                    mouse_report.h = delta / custom_config.smoothSensitivity;
+                }
+            }
+            
+            
+
+            #ifdef CONSOLE_ENABLE
+                if(delta > custom_config.sensitivity || delta < -custom_config.sensitivity ){
+                    uprintf(" Scaled angle: %d last Value: %d dataHigh: %d dataLow: %d delta: %d\n",  scaled_angle, lastValue, data[0], data[1], delta);
+                    //wait_ms(100);
+                }
+            #endif 
+        }    
+        return mouse_report;
+    }
+
 
 //VIA SETTINGS
 enum via_buttglow_value {
-    id_sensitivity  = 2
+    id_sensitivity  = 2,
+    id_smooth_scroll_mode = 1,
+    id_scroll_direction = 3,
+    id_smooth_sensitivity = 4,
+    id_deadzone = 5,
+    id_invert_direction =  6
 };
 
 void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
@@ -174,7 +237,27 @@ void custom_config_set_value(uint8_t *data) {
         case id_sensitivity: {
              custom_config.sensitivity = *value_data;
             break;
-        }          
+        }
+        case id_smooth_scroll_mode: {
+             custom_config.smoothScrollMode = *value_data;
+            break;
+        }
+        case id_scroll_direction: {
+             custom_config.direction = *value_data;
+            break;
+        } 
+        case id_smooth_sensitivity: {
+             custom_config.smoothSensitivity = *value_data;
+            break;
+        } 
+        case id_deadzone: {
+             custom_config.deadzone = *value_data;
+            break;
+        } 
+        case id_invert_direction: {
+             custom_config.invertDirection = *value_data;
+            break;
+        }                  
     }
 }
 
@@ -187,7 +270,27 @@ void custom_config_get_value(uint8_t *data) {
         case id_sensitivity: {
             *value_data = custom_config.sensitivity;
             break;
-        }                
+        }
+        case id_smooth_scroll_mode: {
+            *value_data = custom_config.smoothScrollMode;
+            break;
+        }
+        case id_scroll_direction: {
+            *value_data = custom_config.direction;
+            break;
+        } 
+        case id_smooth_sensitivity: {
+            *value_data = custom_config.smoothSensitivity;
+            break;
+        } 
+        case id_deadzone: {
+            *value_data = custom_config.deadzone;
+            break;
+        }
+        case id_invert_direction: {
+            *value_data = custom_config.invertDirection;
+            break;
+        }
     }
 }
 
@@ -198,4 +301,3 @@ void matrix_init_user(void) {
 void custom_config_save(void) {
     eeconfig_update_user(custom_config.raw);
 }
-
