@@ -14,7 +14,7 @@ KNOB is the first QMK supported device to use a hall effect rotary encoder with 
 
 Make example for this keyboard:
 
-    make knobv2_1:default
+     qmk compile -kb baselinedesign/knobv2_1 -km default
 
 Flashing example for this keyboard:
 
