@@ -10,6 +10,8 @@
 #define ENCODER_A_PINS { F4 }
 #define ENCODER_B_PINS { F5 }
 
+#define MIDI_ADVANCED
+
 #define WS2812_DI_PIN B6
 #define RGBLIGHT_LED_COUNT 3
 #define RGBLIGHT_SLEEP
