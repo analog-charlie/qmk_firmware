@@ -301,3 +301,38 @@ void matrix_init_user(void) {
 void custom_config_save(void) {
     eeconfig_update_user(custom_config.raw);
 }
+
+//Add external MIDI
+extern MidiDevice midi_device;
+
+// MIDI CC codes for generic on/off switches (80, 81, 82, 83)
+// Off: 0-63
+// On:  64-127
+
+#define MIDI_CC_OFF 0
+#define MIDI_CC_ON  127
+
+enum custom_keycodes {
+    MIDI_CC80 = SAFE_RANGE,
+};
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case MIDI_CC80:
+            if (record->event.pressed) {
+                midi_send_cc(&midi_device, midi_config.channel, 80, MIDI_CC_ON);
+            } else {
+                midi_send_cc(&midi_device, midi_config.channel, 80, MIDI_CC_OFF);
+            }
+            return true;
+    }
+    return true;
+};
+
+const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    LAYOUT(
+        // ...
+        MIDI_CC80,
+        // ...
+    )
+};
